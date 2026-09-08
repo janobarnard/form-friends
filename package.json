@@ -1,0 +1,49 @@
+{
+  "name": "form-friends",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Animated SVG characters that watch and react to a form - they follow your pointer, turn to the focused field, look away from passwords, and nod off if you leave them alone.",
+  "license": "MIT",
+  "author": "Jano Barnard",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/janobarnard/form-friends.git"
+  },
+  "homepage": "https://github.com/janobarnard/form-friends#readme",
+  "bugs": "https://github.com/janobarnard/form-friends/issues",
+  "keywords": [
+    "react",
+    "svg",
+    "animation",
+    "characters",
+    "mascot",
+    "form",
+    "login",
+    "sign-in",
+    "password",
+    "css-custom-properties"
+  ],
+  "type": "module",
+  "sideEffects": ["*.css"],
+  "files": ["src", "README.md", "LICENSE"],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:pages": "vite build --mode pages",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.3"
+  }
+}

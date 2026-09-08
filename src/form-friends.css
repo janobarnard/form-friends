@@ -1,0 +1,388 @@
+/* Form Friends - stylesheet.
+ *
+ * Two halves work together. This file owns POSE and MOTION: which way each
+ * character looks away, how far a face travels toward the gaze target, the
+ * lean, the blink clocks, the sleep droop. The component owns geometry.
+ *
+ * The gaze arrives as --ff-lx / --ff-ly, written straight onto the scene
+ * container by useFormFriends and inherited from there. That is deliberate:
+ * holding the gaze in React state re-rendered the entire page once per
+ * animation frame while the pointer moved.
+ *
+ * Everything keys off the [data-mood] attribute on the <svg>, so a new
+ * mood is a new attribute value plus rules here - no component change.
+ *
+ * All custom properties are namespaced --ff-*. Override the palette block
+ * below to restyle the cast; nothing else needs touching.
+ */
+
+:root {
+  /* --- the cast: override these to restyle every character --- */
+  --ff-char-1: #b7c4ec; /* the triangle  */
+  --ff-char-2: #d3b6e0; /* the wall      */
+  --ff-char-3: #e3b7cd; /* the dome      */
+  --ff-char-4: #a9d6cf; /* the coin      */
+  --ff-ink: #1c2030;    /* pupils, mouths, the sleeping z's */
+
+  /* --- derived bits that differ between light and dark --- */
+  --ff-ground: rgba(28, 32, 48, 0.1);
+  --ff-zzz: var(--ff-ink);
+  --ff-chip-bg: rgba(255, 255, 255, 0.92);
+  --ff-chip-border: rgba(18, 24, 38, 0.18);
+  --ff-chip-text: #14171d;
+}
+
+/* Dark values live in one list, applied twice: once for the system
+   preference (unless the host has explicitly asked for light) and once for an
+   explicit data-theme="dark", so a host's own theme toggle wins either way. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ff-ground: rgba(0, 0, 0, 0.35);
+    --ff-zzz: #cdd4e4;
+    --ff-chip-bg: rgba(18, 24, 38, 0.82);
+    --ff-chip-border: rgba(255, 255, 255, 0.14);
+    --ff-chip-text: #eceef5;
+  }
+}
+
+:root[data-theme="dark"] {
+  --ff-ground: rgba(0, 0, 0, 0.35);
+  --ff-zzz: #cdd4e4;
+  --ff-chip-bg: rgba(18, 24, 38, 0.82);
+  --ff-chip-border: rgba(255, 255, 255, 0.14);
+  --ff-chip-text: #eceef5;
+}
+
+.ff-scene { display: block; width: 100%; height: auto; }
+
+/* Nothing to animate for nobody: useFormFriends stamps data-ff-paused on the
+   container while the tab is hidden. */
+[data-ff-paused] .ff-scene,
+[data-ff-paused] .ff-scene * {
+  animation-play-state: paused !important;
+}
+
+/* Optional wrapper. The scene fills its container, so give it one with a
+   sensible width - or set your own and skip this class entirely. */
+.ff-stage {
+  align-self: center;
+  width: min(460px, 100%);
+  margin: 24px 0;
+}
+@media (max-width: 860px) {
+  .ff-stage { width: min(300px, 80%); margin: 4px 0 0; }
+}
+
+/* ===========================================================================
+   Scene poses – driven by [data-mood] on the svg
+   =========================================================================== */
+
+.ff-ground { fill: var(--ff-ground); }
+
+/* hover name chips – a quiet introduction, one character at a time */
+.ff-tag {
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+  pointer-events: none;
+}
+.ff-char:hover .ff-tag {
+  opacity: 1;
+  transform: translateY(0);
+}
+.ff-tag rect {
+  fill: var(--ff-chip-bg);
+  stroke: var(--ff-chip-border);
+  stroke-width: 1;
+}
+.ff-tag text {
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  fill: var(--ff-chip-text);
+}
+
+/* The whole face travels toward the gaze target (clipped to the body) – the
+   big expressiveness lever. Front-row characters commit harder than the
+   back row (parallax across the group). Pupils add a little extra on top. */
+.ff-face {
+  transform: translate(
+    calc(var(--ff-lx, 0) * var(--fm, 10) * 1px),
+    calc(var(--ff-ly, 0) * var(--fmy, 7) * 1px)
+  );
+  transition: transform 0.18s ease-out;
+}
+.ff-char-1 .ff-face { --fm: 13; --fmy: 9; } /* the mascot commits hardest */
+.ff-char-2 .ff-face { --fm: 8; --fmy: 6; }
+.ff-char-3 .ff-face { --fm: 11; --fmy: 8; }
+.ff-char-4 .ff-face { --fm: 6; --fmy: 4; }
+
+.ff-pupil {
+  transform: translate(calc(var(--ff-lx, 0) * 3.5px), calc(var(--ff-ly, 0) * 2.8px));
+  transition: transform 0.14s ease-out;
+}
+
+/* Whole characters LEAN toward the gaze target –
+   tall back-row characters tip hardest, the dome barely sways. Pivot at
+   each character's own feet. */
+.ff-lean {
+  transform: rotate(calc(var(--ff-lx, 0) * var(--bl, 4) * 1deg));
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  transition: transform 0.3s ease-out;
+}
+.ff-char-1 .ff-lean { --bl: 4; }
+.ff-char-2 .ff-lean { --bl: 6; }
+.ff-char-3 .ff-lean { --bl: 1.5; } /* the reliable one barely sways */
+.ff-char-4 .ff-lean { --bl: 7; }
+/* looking away = standing politely upright */
+[data-mood="shy"] .ff-lean,
+[data-mood="peek"] .ff-lean,
+[data-mood="success"] .ff-lean {
+  transform: rotate(0deg);
+}
+/* error: the triangle crumples, the rest sag a touch off-axis (the dome holds) */
+[data-mood="error"] .ff-char-1 .ff-lean { transform: rotate(-7deg) skewX(-3deg); }
+[data-mood="error"] .ff-char-2 .ff-lean { transform: rotate(3deg); }
+[data-mood="error"] .ff-char-3 .ff-lean { transform: rotate(0deg); }
+[data-mood="error"] .ff-char-4 .ff-lean { transform: rotate(4deg); }
+
+/* lids: parked above the eye (see geometry) – translateY(18px) closes.
+   The state class comes from the component's per-character matrix. */
+.ff-lid {
+  transform: translateY(0);
+  transition: transform 0.16s ease-in-out;
+}
+.ff-lid--closed { transform: translateY(18px); }
+.ff-lid--half { transform: translateY(10px); }
+
+/* SHY (a password is being typed) and PEEK (password revealed – even more
+   awkward): eyes stay open, every face pointedly turns a different way –
+   nobody stares at the field. */
+[data-mood="shy"] .ff-char-1 .ff-face,
+[data-mood="peek"] .ff-char-1 .ff-face { transform: translate(-14px, -9px); }
+[data-mood="shy"] .ff-char-1 .ff-pupil,
+[data-mood="peek"] .ff-char-1 .ff-pupil { transform: translate(-3.5px, -2.5px); }
+[data-mood="shy"] .ff-char-2 .ff-face,
+[data-mood="peek"] .ff-char-2 .ff-face { transform: translate(-7px, -12px); }
+[data-mood="shy"] .ff-char-2 .ff-pupil,
+[data-mood="peek"] .ff-char-2 .ff-pupil { transform: translate(-2px, -3.5px); }
+[data-mood="shy"] .ff-char-3 .ff-face,
+[data-mood="peek"] .ff-char-3 .ff-face { transform: translate(-14px, -4px); }
+[data-mood="shy"] .ff-char-3 .ff-pupil,
+[data-mood="peek"] .ff-char-3 .ff-pupil { transform: translate(-3.5px, -1.5px); }
+[data-mood="shy"] .ff-char-4 .ff-face,
+[data-mood="peek"] .ff-char-4 .ff-face { transform: translate(4px, -12px); }
+[data-mood="shy"] .ff-char-4 .ff-pupil,
+[data-mood="peek"] .ff-char-4 .ff-pupil { transform: translate(1px, -4px); }
+
+/* ...but some can't help themselves: a quick dart back at the form every
+   few seconds, out of phase (drift layer – composes with the face's own
+   look-away transform). */
+@keyframes ff-sneak-a {
+  0%, 84%, 100% { transform: translate(0, 0); }
+  88%, 94% { transform: translate(16px, 14px); }
+}
+@keyframes ff-sneak-b {
+  0%, 76%, 100% { transform: translate(0, 0); }
+  80%, 88% { transform: translate(20px, 12px); }
+}
+/* the coin can't resist – the wall would never */
+[data-mood="shy"] .ff-char-4 .ff-drift,
+[data-mood="peek"] .ff-char-4 .ff-drift { animation: ff-sneak-a 6.4s ease-in-out infinite; }
+[data-mood="shy"] .ff-char-1 .ff-drift,
+[data-mood="peek"] .ff-char-1 .ff-drift { animation: ff-sneak-b 11.3s ease-in-out 4s infinite; }
+/* the non-peekers still breathe: a slow uneasy sway while looking away */
+@keyframes ff-sway {
+  0%, 100% { transform: translate(0, 0); }
+  50% { transform: translate(var(--sx, 2px), var(--sy, 1.5px)); }
+}
+[data-mood="shy"] .ff-char-2 .ff-drift,
+[data-mood="peek"] .ff-char-2 .ff-drift { --sx: -2px; --sy: 2.5px; animation: ff-sway 5.1s ease-in-out 0.8s infinite; }
+[data-mood="shy"] .ff-char-3 .ff-drift,
+[data-mood="peek"] .ff-char-3 .ff-drift { --sx: 3px; --sy: -1.5px; animation: ff-sway 4.7s ease-in-out 1.6s infinite; }
+
+/* idle life: every character occasionally glances around on its own clock */
+@keyframes ff-glance {
+  0%, 76%, 100% { transform: translate(0, 0); }
+  80%, 90% { transform: translate(var(--gx, 6px), var(--gy, -3px)); }
+}
+[data-mood="idle"] .ff-char-1 .ff-drift { --gx: -6px; --gy: -4px; animation: ff-glance 15s ease-in-out 2s infinite; }
+[data-mood="idle"] .ff-char-2 .ff-drift { --gx: 8px; --gy: -5px; animation: ff-glance 11s ease-in-out infinite; }
+[data-mood="idle"] .ff-char-3 .ff-drift { --gx: -7px; --gy: 3px; animation: ff-glance 13s ease-in-out 7s infinite; }
+[data-mood="idle"] .ff-char-4 .ff-drift { --gx: 6px; --gy: 5px; animation: ff-glance 17s ease-in-out 9s infinite; }
+
+/* tiny mouth life while content: an occasional soft smile-widen */
+@keyframes ff-mouth-twitch {
+  0%, 88%, 100% { transform: scale(1); }
+  92%, 96% { transform: scale(1.14, 1.06); }
+}
+[data-mood="idle"] .ff-mouth,
+[data-mood="look"] .ff-mouth {
+  transform-box: fill-box;
+  transform-origin: 50% 50%;
+  animation: ff-mouth-twitch 9s ease-in-out infinite;
+}
+[data-mood="idle"] .ff-char-2 .ff-mouth,
+[data-mood="look"] .ff-char-2 .ff-mouth { animation-delay: 3s; }
+[data-mood="idle"] .ff-char-3 .ff-mouth,
+[data-mood="look"] .ff-char-3 .ff-mouth { animation-delay: 5.5s; }
+[data-mood="idle"] .ff-char-4 .ff-mouth,
+[data-mood="look"] .ff-char-4 .ff-mouth { animation-delay: 1.5s; }
+
+/* upset (not angry): faces sink low, eyes to the floor */
+[data-mood="error"] .ff-face {
+  transform: translate(calc(var(--ff-lx, 0) * 6px), 11px);
+}
+[data-mood="error"] .ff-pupil { transform: translate(-2px, 3.5px); }
+/* the dome and the coin sit low – their sunken sad faces push the mouth
+   into the clip edge, so the mouth alone rides back up a smidge */
+[data-mood="error"] .ff-char-3 .ff-mouth { transform: translateY(-7px); transition: transform 0.3s ease; }
+[data-mood="error"] .ff-char-4 .ff-mouth { transform: translateY(-4px); transition: transform 0.3s ease; }
+/* ...and a sad slow rock instead of freezing – starts once the shake ends */
+@keyframes ff-sad-rock {
+  0%, 100% { transform: translate(0, 0) rotate(0deg); }
+  50% { transform: translate(-1.5px, 2px) rotate(-0.8deg); }
+}
+[data-mood="error"] .ff-drift {
+  transform-box: fill-box;
+  transform-origin: 50% 100%;
+  animation: ff-sad-rock 3.6s ease-in-out 0.5s infinite;
+}
+[data-mood="error"] .ff-char-2 .ff-drift { animation-delay: 1.1s; }
+[data-mood="error"] .ff-char-3 .ff-drift { animation-delay: 1.7s; }
+[data-mood="error"] .ff-char-4 .ff-drift { animation-delay: 0.8s; }
+
+/* blinking wherever eyes are open – per-character rhythm so the group
+   never blinks in unison */
+@keyframes ff-blink {
+  0%, 95%, 100% { transform: translateY(0); }
+  96%, 98% { transform: translateY(18px); }
+}
+[data-mood="idle"] .ff-lid--open,
+[data-mood="look"] .ff-lid--open,
+[data-mood="shy"] .ff-lid--open,
+[data-mood="peek"] .ff-lid--open,
+[data-mood="error"] .ff-lid--open {
+  animation: ff-blink 6.3s ease-in-out infinite;
+}
+/* one clock per CHARACTER (both eyes of one face must sync – five faces
+   must not): long near-co-prime cycles keep blinks rare AND make two
+   characters landing in the same second an uncommon accident */
+.ff-char-2 .ff-lid--open { animation-duration: 8.9s; animation-delay: 1.7s; }
+.ff-char-3 .ff-lid--open { animation-duration: 7.1s; animation-delay: 3.9s; }
+.ff-char-4 .ff-lid--open { animation-duration: 10.3s; animation-delay: 0.9s; }
+
+/* sad brows on error only */
+.ff-brows {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+[data-mood="error"] .ff-brows { opacity: 1; }
+
+/* ===== drowsy (pre-sleep): heavy lids, slow droopy blinks, sagging faces,
+   each on their own clock ===== */
+/* ===== drowsy → sleep: the stagger comes from REACT timers (per-character
+   ff-stage-* classes land in separate style recalcs), so CSS here is just
+   simple one-step transitions – no delayed animations, which Chrome proved
+   unreliable at restarting on combined class+attribute flips. ===== */
+[data-mood="drowsy"] .ff-lid,
+[data-mood="sleep"] .ff-lid {
+  transition: transform 0.9s ease;
+}
+/* tired: heavy lids with slow droopy blinks (infinite loops are safe to
+   resume; only finite delayed animations misbehaved) */
+@keyframes ff-heavy-blink {
+  0%, 74%, 100% { transform: translateY(10px); }
+  80%, 92% { transform: translateY(17px); }
+}
+[data-mood="drowsy"] .ff-stage-tired .ff-lid--half { animation: ff-heavy-blink 5.2s ease-in-out 1.2s infinite; }
+[data-mood="drowsy"] .ff-char-2.ff-stage-tired .ff-lid--half { animation-duration: 6.4s; animation-delay: 1.8s; }
+[data-mood="drowsy"] .ff-char-3.ff-stage-tired .ff-lid--half { animation-duration: 5.7s; animation-delay: 2.4s; }
+[data-mood="drowsy"] .ff-char-4.ff-stage-tired .ff-lid--half { animation-duration: 7.1s; animation-delay: 1.5s; }
+/* faces sag when tired, droop further asleep; pupils settle low */
+.ff-stage-tired .ff-face { transform: translate(0, 4px); transition: transform 1.6s ease; }
+.ff-stage-asleep .ff-face { transform: translate(0, 7px); transition: transform 1.4s ease; }
+.ff-stage-tired .ff-pupil,
+.ff-stage-asleep .ff-pupil { transform: translate(0, 3px); transition: transform 1.4s ease; }
+[data-mood="drowsy"] .ff-lean,
+[data-mood="sleep"] .ff-lean {
+  transform: rotate(0deg);
+  transition: transform 1.8s ease;
+}
+/* ===== sleep ===== */
+/* no separate breathing animation: the idle bob keeps running untouched
+   (swapping animations mid-phase makes the whole body hop) – at sleep pace
+   it simply reads as slow breathing */
+/* the closed-eye line fades in as its own lid lands (elements remount per
+   nap, so this finite animation always starts fresh) */
+@keyframes ff-appear {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.ff-stage-asleep .ff-closedline { animation: ff-appear 0.3s ease 0.55s both; }
+/* floating zzz – mounts only once the whole family is under */
+@keyframes ff-z-float {
+  0% { opacity: 0; transform: translateY(4px); }
+  35%, 65% { opacity: 0.7; }
+  100% { opacity: 0; transform: translateY(-8px); }
+}
+.ff-z { animation: ff-z-float 3.6s ease-in-out infinite; }
+.ff-z-2 { animation-delay: 0.6s; }
+.ff-z-3 { animation-delay: 1.2s; }
+.ff-zzz text { fill: var(--ff-zzz); }
+
+/* gentle idle bob, staggered per character */
+@keyframes ff-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+.ff-char { animation: ff-bob 4.6s ease-in-out infinite; }
+.ff-char-2 { animation-delay: 0.7s; }
+.ff-char-3 { animation-delay: 1.4s; }
+.ff-char-4 { animation-delay: 2.1s; }
+
+/* error: a short shake, then the whole family slumps (droop carried by the
+   rule transform once the one-shot animation ends) with staggered timing so
+   the disappointment ripples through the group */
+@keyframes ff-shake {
+  0% { transform: translateX(0); }
+  25% { transform: translateX(-5px); }
+  75% { transform: translateX(5px); }
+  100% { transform: translateY(4px); }
+}
+[data-mood="error"] .ff-char {
+  transform: translateY(4px);
+  animation: ff-shake 0.33s ease-in-out 1;
+}
+[data-mood="error"] .ff-char-2 { animation-delay: 0.05s; }
+[data-mood="error"] .ff-char-3 { animation-delay: 0.1s; }
+[data-mood="error"] .ff-char-4 { animation-delay: 0.15s; }
+/* eyes half-lidded while ashamed – lid creeps a third of the way down */
+[data-mood="error"] .ff-lid { transform: translateY(6px); }
+
+/* success: one happy hop, staggered like a tiny wave */
+@keyframes ff-hop {
+  0%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-10px); }
+}
+[data-mood="success"] .ff-char { animation: ff-hop 0.5s ease-in-out 1; }
+[data-mood="success"] .ff-char-2 { animation-delay: 0.06s; }
+[data-mood="success"] .ff-char-3 { animation-delay: 0.12s; }
+[data-mood="success"] .ff-char-4 { animation-delay: 0.18s; }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Reduced motion kills the SWEEPING movement (bob, hops, shake, sways,
+     glances, gaze transitions) – blinking and the mouth twitch are tiny,
+     non-vestibular micro-motions and deliberately survive, so the family
+     still reads as alive. */
+  /* looping ambient motion goes; small STATE transitions (lids, faces,
+     pupils) stay – they're tiny, user-initiated, and killing them turns
+     every pose change into a jarring simultaneous snap */
+  .ff-char,
+  [data-mood] .ff-char,
+  .ff-drift,
+  .ff-z {
+    animation: none !important;
+  }
+}
