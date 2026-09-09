@@ -1,6 +1,6 @@
 <p align="center">
   <a href="https://janobarnard.github.io/form-friends/">
-    <img src="public/og.png" alt="Four pastel SVG characters - a triangle, a wall, a dome and a coin - watching a sign-in form" width="100%" />
+    <img src="https://janobarnard.github.io/form-friends/og.png" alt="Four pastel SVG characters - a triangle, a wall, a dome and a coin - watching a sign-in form" width="100%" />
   </a>
 </p>
 
